@@ -17,7 +17,7 @@ from telegram_bot.core.services.bot_mcp_runtime import ensure_bot_runtime_mcp_co
 from telegram_bot.core.services.claude import StreamEvent
 from telegram_bot.core.services.providers import CODEX_ADAPTER
 from telegram_bot.core.services.tmux_spawn import file_size, spawn_tmux_sync
-from telegram_bot.core.services.tmux_state import TmuxSessionState, _normalize_state_dict
+from telegram_bot.core.services.tmux_state import TmuxSessionState, parse_state_entry
 from telegram_bot.core.types import ChannelKey
 
 
@@ -173,7 +173,11 @@ def restore_all(
     if not manager._state_store.exists():
         return {}
 
-    raw: dict[str, Any] = manager._state_store.load_raw()
+    load_result = manager._state_store.load()
+    if not load_result.ok:
+        logger.warning("restore_all: durable tmux state is poisoned; skipping restore")
+        return {}
+    raw: dict[str, Any] = load_result.raw
     if not raw:
         return {}
 
@@ -185,10 +189,15 @@ def restore_all(
                 int(chat_id_str),
                 int(thread_str) if thread_str != "None" else None,
             )
-            # Must normalize BEFORE constructing — otherwise the dataclass
-            # default "tui-v1" would silently overwrite the legacy marker
-            # for old state.json entries missing runner_version.
-            state = TmuxSessionState(**_normalize_state_dict(data))
+            parsed = parse_state_entry(data)
+            if parsed.state is None:
+                logger.warning(
+                    "restore_all: malformed state entry for key %s preserved: %s",
+                    key_str,
+                    parsed.error,
+                )
+                continue
+            state = parsed.state
             alive = manager._tmux_alive(state.session_name)
             rv = state.runner_version
 

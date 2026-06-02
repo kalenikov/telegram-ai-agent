@@ -496,7 +496,8 @@ Issues, bug reports и идеи welcome. Откройте GitHub issue, если
 
 Бота сделал Паша Молянов. Я пишу про бизнес, AI-ассистентов, разработку и
 запуск полезных сервисов в Telegram-канале:
-[@molyanov_blog](https://t.me/+zJ5qmSsoYediYzdi).
+[@molyanov_blog](https://t.me/+zJ5qmSsoYediYzdi). Мой сайт:
+[molyanov.ru](https://molyanov.ru).
 
 ## License
 

@@ -491,7 +491,8 @@ unclear, broken, or missing.
 
 Made by Pasha Molyanov. I write about business, AI assistants, development, and
 launching useful services in my Telegram channel:
-[@molyanov_blog](https://t.me/+zJ5qmSsoYediYzdi).
+[@molyanov_blog](https://t.me/+zJ5qmSsoYediYzdi). My website:
+[molyanov.ru](https://molyanov.ru).
 
 ## License
 

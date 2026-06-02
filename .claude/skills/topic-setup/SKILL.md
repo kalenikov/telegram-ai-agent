@@ -18,7 +18,18 @@ Determine:
 
 - Current `chat_id` and `thread_id` from `<telegram-context>` when available.
 - `TELEGRAM_BOT_TOKEN` from `.env` or the environment.
-- Forum chat ID. Use `<telegram-context>` first; otherwise ask the user.
+- Forum chat ID:
+  - For Pasha's production assistant, create project topics in the Telegram
+    supergroup forum, not in the private bot chat.
+  - Prefer `NOTIFICATION_CHAT_ID` from `.env` when it points to a
+    `type=supergroup` chat with `is_forum=true`.
+  - Use `<telegram-context>.chat_id` only when it is already a supergroup forum
+    chat. Do not use a private chat id from `<telegram-context>` just because
+    the request came from Telegram.
+  - Do not use `ALLOWED_USER_IDS[0]` as `chat_id` for project topics unless the
+    user explicitly asks for private bot-chat Threaded Mode.
+  - If no forum group can be discovered locally, ask the user for the forum
+    group chat id instead of creating a private-chat topic.
 - Project path for the topic, if this is a project topic.
 - Desired `engine`: `claude` or `codex`. Prefer Claude Code when both are
   installed. If the configured engine is missing and the other engine exists,
@@ -37,6 +48,17 @@ call Telegram Bot API:
 Read the bot token from the `TELEGRAM_BOT_TOKEN` environment variable or from
 the local `.env` file, then call `createForumTopic` with the forum chat ID and
 topic name. Do not print or commit the token.
+
+Before creating, verify the target chat:
+
+```bash
+getChat(chat_id) -> type == "supergroup" and is_forum == true
+getChatMember(chat_id, bot_id) -> bot is administrator and can_manage_topics == true
+```
+
+If the chat is private, stop and re-resolve the forum chat. Private bot-chat
+Threaded Mode is only for an explicit user request or a deliberately documented
+fallback; it is not the default location for project topics in this project.
 
 The response includes `message_thread_id`. Use it as the topic key in
 `topic_config.json`.

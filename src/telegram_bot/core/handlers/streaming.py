@@ -265,36 +265,13 @@ async def ensure_exec_mode_ready(
             return False
         if available_engine != requested_engine:
             logger.warning(
-                "Engine %s unavailable for tmux channel %s; falling back to %s",
+                "Engine %s unavailable for tmux channel %s; refusing provider fallback to %s",
                 requested_engine,
                 key,
                 available_engine,
             )
-            engine = available_engine
-            model = None
-            current_session.engine = available_engine
-            current_session.model = None
-            if thread_id is not None:
-                ok = await topic_config.update_engine_model(thread_id, available_engine, None)
-                if not ok:
-                    logger.warning(
-                        "Failed to persist tmux fallback engine=%s for thread_id=%s",
-                        available_engine,
-                        thread_id,
-                    )
-            # Mirror manual /engine: drop the prior engine's session_id and notify
-            # the user with the same wording. Without this the user only learns
-            # about the swap by noticing lost context after the fact.
-            await session_manager.clear_provider_session(key)
-            try:
-                await source_msg.answer(
-                    t("ui.engine_changed_new_session", engine=engine_display_name(engine))
-                )
-            except Exception:
-                logger.exception(
-                    "Failed to deliver tmux engine-changed notice on channel %s",
-                    key,
-                )
+            await source_msg.answer(t("ui.agent_cli_not_found"))
+            return False
 
         # Always spawn fresh — never --resume from peek_saved_session here.
         # Lazy-start-with-resume caused a silent delivery desync in production:
@@ -583,12 +560,28 @@ async def send_streaming_response(
 
     sent_message_ids: list[int] = []
 
+    tmux_required = False
+    if topic_config is not None:
+        try:
+            tmux_required = topic_config.get_topic(channel_key[1]).exec_mode == "tmux"
+        except Exception:
+            logger.warning("Failed to resolve exec_mode for %s", channel_key, exc_info=True)
+            await message.answer(t("ui.tmux_failed", exc="topic config is unreadable"))
+            return
+
     cmd = prompt.split()[0] if prompt.startswith("/") else None
     thinking_text = t("ui.running_command", command=cmd) if cmd else t("ui.thinking")
+    used_tmux = tmux_manager is not None and tmux_manager.is_active(channel_key)
+    if tmux_required and not used_tmux:
+        logger.warning(
+            "Refusing subprocess fallback for tmux-configured channel %s",
+            channel_key,
+        )
+        await message.answer(t("ui.tmux_failed", exc="tmux session is not active"))
+        return
+
     thinking_msg = await message.answer(thinking_text, disable_notification=True)
     sent_message_ids.append(thinking_msg.message_id)
-
-    used_tmux = tmux_manager is not None and tmux_manager.is_active(channel_key)
 
     # Materialize a LiveStatusBuffer for live-mode. For tmux it's registered
     # on the manager so on_event (which may fire from a long-running tail)
