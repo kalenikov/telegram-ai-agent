@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     topic_config_path: str = "./topic_config.json"
     notification_chat_id: int | None = None
     tmux_sessions_dir: str = "./tmux_sessions"
+    proxy_url: str = ""
 
 
 @functools.lru_cache(maxsize=1)

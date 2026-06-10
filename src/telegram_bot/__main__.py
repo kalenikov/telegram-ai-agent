@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ChatType
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message
@@ -91,7 +92,8 @@ async def _start() -> None:
     )
 
     settings = get_settings()
-    bot = Bot(token=settings.telegram_bot_token)
+    session = AiohttpSession(proxy=settings.proxy_url) if settings.proxy_url else None
+    bot = Bot(token=settings.telegram_bot_token, session=session)
     try:
         await setup_bot_commands(bot)
     except Exception:
