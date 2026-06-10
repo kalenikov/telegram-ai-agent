@@ -371,6 +371,11 @@ class CodexAdapter:
     def parse_tui_event(self, raw: str) -> TuiParseResult:
         data = _load_json(raw)
         if data is None:
+            # Plain-text output from Codex CLI (e.g. usage limit errors, auth
+            # messages) is not JSON — surface it so the user sees it in Telegram.
+            stripped = raw.strip()
+            if stripped:
+                return TuiParseResult([StreamEvent("result_message", stripped)])
             return TuiParseResult([])
 
         event_type = data.get("type")

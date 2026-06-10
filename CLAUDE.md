@@ -20,7 +20,7 @@ Skills carry the operational context (read these instead of guessing):
 
 ```bash
 uv sync                                              # install deps (Python 3.12+)
-uv run telegram-bot                                  # run the bot (reads .env)
+uv run telegram-bot                                  # run the bot foreground (reads .env)
 uv run pytest                                        # full test suite
 uv run pytest tests/test_public_runtime.py::test_public_settings_default_cwd_is_generic  # single test
 uv run ruff check .                                  # lint
@@ -30,6 +30,23 @@ uv run mypy src/ mcp-servers/bot/server.py           # strict type check
 
 Run all four checks (ruff check, ruff format --check, mypy, pytest) before final
 handoff. mypy runs in `strict` mode; tests use `pytest-asyncio` in auto mode.
+
+**Production (systemd):**
+```bash
+sudo systemctl start telegram-bot      # start
+sudo systemctl stop telegram-bot       # stop
+sudo systemctl restart telegram-bot    # restart after config/code changes
+sudo systemctl status telegram-bot     # check status
+journalctl -u telegram-bot -f          # follow logs
+```
+
+The unit file lives at `/etc/systemd/system/telegram-bot.service` (generated from
+`docs/systemd/telegram-bot.service.template`). `KillMode=process` lets tmux sessions
+survive a bot restart.
+
+**Proxy:** set `PROXY_URL=http://127.0.0.1:10808` in `.env` to route all Telegram API
+traffic through a local HTTP proxy (Xray/tinyproxy). Requires `aiohttp-socks` (already
+in dependencies). Leave empty to connect directly.
 
 ## Architecture
 
