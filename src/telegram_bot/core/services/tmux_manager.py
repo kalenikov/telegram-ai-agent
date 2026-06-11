@@ -212,6 +212,40 @@ __all__ = [
 ]
 
 
+def _extract_codex_pane_error(pane: str) -> str:
+    """Extract a human-readable error line from a Codex pane after transcript failure.
+
+    Prefers lines starting with ■ (Codex error indicator), falls back to
+    known plaintext error phrases. HTML content is stripped.
+    """
+    if not pane:
+        return ""
+    lines = pane.splitlines()
+    html_markers = ("<html", "<head", "<body", "<style", "<div", "<meta")
+    for line in reversed(lines):
+        stripped = line.strip()
+        if not stripped.startswith("■"):
+            continue
+        for marker in html_markers:
+            idx = stripped.lower().find(marker)
+            if idx > 0:
+                stripped = stripped[:idx].rstrip(" ,:·")
+        if stripped and stripped != "■":
+            return stripped[:500]
+    known_phrases = (
+        "you've hit your usage limit",
+        "upgrade to pro",
+        "please run /login",
+        "api error",
+        "rate limit",
+    )
+    for line in lines:
+        stripped = line.strip()
+        if any(kw in stripped.lower() for kw in known_phrases):
+            return stripped[:500]
+    return ""
+
+
 @dataclass(frozen=True)
 class SwitchResult:
     kind: Literal[
@@ -2175,14 +2209,14 @@ class TmuxManager:
                             state.session_name,
                             exc_info=True,
                         )
-                        ret = on_event(
-                            StreamEvent(
-                                "result_message",
-                                "Codex принял сообщение, но бот не смог найти transcript "
-                                "для стриминга ответа. Сессия оставлена живой; открой /tui "
-                                "или отправь следующее сообщение после завершения работы.",
-                            )
+                        pane = await capture_pane(state.session_name)
+                        pane_error = _extract_codex_pane_error(pane)
+                        error_msg = pane_error or (
+                            "Codex принял сообщение, но бот не смог найти transcript "
+                            "для стриминга ответа. Сессия оставлена живой; открой /tui "
+                            "или отправь следующее сообщение после завершения работы."
                         )
+                        ret = on_event(StreamEvent("result_message", error_msg))
                         if asyncio.iscoroutine(ret):
                             await ret
                         await self.close_buffer(channel_key)

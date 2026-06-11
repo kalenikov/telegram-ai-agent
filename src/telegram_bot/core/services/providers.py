@@ -72,17 +72,28 @@ def engine_display_name(engine: str) -> str:
 
 
 def _codex_tui_prefix() -> list[str]:
-    """Use an isolated Codex home for TUI sessions when provisioned.
+    """Build env-prefix for the Codex TUI command.
 
-    Bot TUI sessions pass topic-scoped MCP servers through CLI overrides. A
-    large or broken user-level ~/.codex/config.toml should not block fresh
-    chat creation, so production can provide ~/.codex-bot with shared auth and
-    a minimal config.
+    Injects CODEX_HOME when an isolated bot home is provisioned, and
+    HTTP_PROXY/HTTPS_PROXY when PROXY_URL (or standard proxy vars) are set in
+    the process environment — needed when chatgpt.com is only reachable via a
+    local HTTP proxy (e.g. Xray).
     """
+    env_vars: list[str] = []
     if (_CODEX_BOT_HOME / "config.toml").exists():
         _ensure_codex_global_skill_links()
-        return ["env", f"CODEX_HOME={_CODEX_BOT_HOME}"]
-    return []
+        env_vars.append(f"CODEX_HOME={_CODEX_BOT_HOME}")
+    proxy = (
+        os.environ.get("HTTPS_PROXY")
+        or os.environ.get("https_proxy")
+        or os.environ.get("HTTP_PROXY")
+        or os.environ.get("http_proxy")
+        or os.environ.get("PROXY_URL")
+        or ""
+    )
+    if proxy:
+        env_vars.extend([f"HTTP_PROXY={proxy}", f"HTTPS_PROXY={proxy}"])
+    return ["env", *env_vars] if env_vars else []
 
 
 @dataclass(frozen=True)
@@ -161,8 +172,22 @@ class CodexAdapter:
             return source == "subagent"
         return False
 
+    @staticmethod
+    def _same_cwd(payload_cwd: object, cwd: str) -> bool:
+        """Compare cwds tolerant of relative-vs-absolute forms.
+
+        The transcript records an absolute cwd (Codex resolves --cd), while
+        state.cwd may be relative (e.g. "." from DEFAULT_CWD). Resolve both
+        before comparing so a relative state cwd still matches the transcript.
+        """
+        if not isinstance(payload_cwd, str):
+            return False
+        return os.path.realpath(payload_cwd) == os.path.realpath(cwd)
+
     def _meta_session_id(self, payload: dict[str, Any], *, cwd: str) -> str | None:
-        if payload.get("originator") != "codex-tui" or payload.get("cwd") != cwd:
+        if payload.get("originator") != "codex-tui" or not self._same_cwd(
+            payload.get("cwd"), cwd
+        ):
             return None
         if self._is_subagent_source(payload.get("source")):
             return None
@@ -250,7 +275,9 @@ class CodexAdapter:
             return False
         if not path.is_file() or not os.access(path, os.X_OK):
             return False
-        return stat.st_uid == os.getuid() and stat.st_mode & 0o022 == 0
+        # Block world-writable only; group-writable is acceptable for
+        # npm-global installs where the group is the user's own primary group.
+        return stat.st_uid == os.getuid() and stat.st_mode & 0o002 == 0
 
     def parse_exec_event(self, raw: str) -> ExecParseResult:
         data = _load_json(raw)
@@ -578,10 +605,12 @@ def is_engine_available(engine: str) -> bool:
 
 
 def choose_available_engine(preferred: str = "claude") -> Engine | None:
-    """Pick an installed engine, preferring the requested one and then the other."""
+    """Return the preferred engine if available, otherwise None.
+
+    No cross-engine fallback: if the preferred engine is unavailable the
+    caller receives None and is expected to surface an error to the user
+    rather than silently switching engines.
+    """
     if preferred in {"claude", "codex"} and is_engine_available(preferred):
         return preferred  # type: ignore[return-value]
-    fallback: Engine = "codex" if preferred == "claude" else "claude"
-    if is_engine_available(fallback):
-        return fallback
     return None

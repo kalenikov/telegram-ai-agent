@@ -94,24 +94,10 @@ def exec_mode_keyboard(current: str | None = None) -> InlineKeyboardMarkup:
 
 
 def engine_keyboard(current_engine: str | None = None) -> InlineKeyboardMarkup:
-    """Two-button picker for provider engine."""
-
-    def _engine_label(engine: str, text: str) -> str:
-        return f"✅ {text}" if current_engine == engine else text
-
+    """Single-button picker — Codex only."""
+    label = "✅ Codex" if current_engine == "codex" else "Codex"
     return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=_engine_label("claude", "Claude Code"),
-                    callback_data="engine:claude",
-                ),
-                InlineKeyboardButton(
-                    text=_engine_label("codex", "Codex"),
-                    callback_data="engine:codex",
-                ),
-            ],
-        ],
+        inline_keyboard=[[InlineKeyboardButton(text=label, callback_data="engine:codex")]]
     )
 
 

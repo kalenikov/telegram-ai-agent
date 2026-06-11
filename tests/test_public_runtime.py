@@ -77,13 +77,15 @@ def test_free_mode_allows_skill_for_topic_setup() -> None:
     assert "Skill" in tools
 
 
-def test_engine_selection_falls_back_to_available_cli(monkeypatch) -> None:
+def test_engine_selection_returns_none_when_unavailable(monkeypatch) -> None:
     monkeypatch.setattr(
         "telegram_bot.core.services.providers.is_engine_available",
         lambda engine: engine == "codex",
     )
 
-    assert choose_available_engine("claude") == "codex"
+    # No cross-engine fallback: unavailable preferred engine → None.
+    assert choose_available_engine("claude") is None
+    assert choose_available_engine("codex") == "codex"
 
 
 def test_topic_config_parses_public_runtime_fields(tmp_path: Path) -> None:
