@@ -13,9 +13,15 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 _SERVER_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+# How Codex should treat the user-level ~/.codex/config.toml MCP servers:
+#   "ignore" — pass --ignore-user-config (drop everything user-defined)
+#   "reset"  — pass -c mcp_servers={} (clear servers but keep other config)
+#   "keep"   — pass nothing, so Codex loads user MCP servers (e.g. context7)
+UserConfigMode = Literal["ignore", "reset", "keep"]
 
 
 def _toml_value(value: object) -> str:
@@ -57,14 +63,23 @@ def _server_items(mcp_config: str) -> list[tuple[str, dict[str, Any]]]:
 def build_codex_mcp_config_args(
     mcp_config: str | None,
     *,
-    ignore_user_config: bool = True,
+    user_config: UserConfigMode = "ignore",
 ) -> list[str]:
     """Build Codex CLI args for topic-scoped MCP servers.
 
     Env values from the MCP JSON are intentionally omitted from argv. They are
     loaded by this module when Codex starts the server process.
+
+    ``user_config`` controls whether Codex also loads MCP servers from the
+    user-level config (see ``UserConfigMode``). Use "keep" to let HTTP servers
+    like context7 — which this stdio runner cannot proxy — load natively.
     """
-    args = ["--ignore-user-config"] if ignore_user_config else ["-c", "mcp_servers={}"]
+    if user_config == "ignore":
+        args = ["--ignore-user-config"]
+    elif user_config == "reset":
+        args = ["-c", "mcp_servers={}"]
+    else:  # keep
+        args = []
     if not mcp_config:
         return args
 

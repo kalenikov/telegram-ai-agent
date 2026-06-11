@@ -185,9 +185,7 @@ class CodexAdapter:
         return os.path.realpath(payload_cwd) == os.path.realpath(cwd)
 
     def _meta_session_id(self, payload: dict[str, Any], *, cwd: str) -> str | None:
-        if payload.get("originator") != "codex-tui" or not self._same_cwd(
-            payload.get("cwd"), cwd
-        ):
+        if payload.get("originator") != "codex-tui" or not self._same_cwd(payload.get("cwd"), cwd):
             return None
         if self._is_subagent_source(payload.get("source")):
             return None
@@ -362,9 +360,12 @@ class CodexAdapter:
         cmd = [
             *_codex_tui_prefix(),
             self.binary(),
-            *build_codex_mcp_config_args(mcp_config, ignore_user_config=False),
+            *build_codex_mcp_config_args(mcp_config, user_config="keep"),
             "--no-alt-screen",
-            "--dangerously-bypass-approvals-and-sandbox",
+            "--sandbox",
+            "workspace-write",
+            "--ask-for-approval",
+            "on-failure",
             "--cd",
             cwd,
         ]
@@ -384,10 +385,13 @@ class CodexAdapter:
             *_codex_tui_prefix(),
             self.binary(),
             "resume",
-            *build_codex_mcp_config_args(mcp_config, ignore_user_config=False),
+            *build_codex_mcp_config_args(mcp_config, user_config="keep"),
             session_id,
             "--no-alt-screen",
-            "--dangerously-bypass-approvals-and-sandbox",
+            "--sandbox",
+            "workspace-write",
+            "--ask-for-approval",
+            "on-failure",
             "--cd",
             cwd,
         ]
